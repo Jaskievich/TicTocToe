@@ -2,10 +2,11 @@ package com.example.myapplication;
 
 public class Game
 {
-    private final int N = 3;
+    public final int N = 3;
     private int [][] game_board = new int[N][N];
     private int step = 0;
     private String msg ;
+    private Playr [] playrs;
 
     public enum State
     {
@@ -14,9 +15,29 @@ public class Game
         E_OK
     }
 
+    class Playr{
+        public String name;
+        public String symbol;
+    }
+
     public Game()
     {
         Reset();
+        playrs = new Playr[2];
+        playrs[0] = new Playr();
+        playrs[0].name = "Игрок 2";
+        playrs[0].symbol = "x";
+        playrs[1] = new Playr();
+        playrs[1].name = "Игрок 1";
+        playrs[1].symbol = "0";
+    }
+
+    public String GetCurrNamePlayer(){
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(playrs[(step + 1)  % 2 ].name);
+        stringBuilder.append(" - ");
+        stringBuilder.append(playrs[(step + 1) % 2 ].symbol);
+        return stringBuilder.toString();
     }
 
     public void Reset()
@@ -65,7 +86,7 @@ public class Game
         game_board[i][j] = step % 2;
         if( step > 4  ){
             if( CheckPlay() > -1 ){
-                msg = "Игрок "+ ((step + 1) % 2 + 1 ) + " выиграл";
+                msg = playrs[step % 2].name + " выиграл";
                 return State.E_END_GAME; // игра окончена
             } if( step == 9 ){
                 msg = "Ничья";
@@ -80,6 +101,6 @@ public class Game
     }
 
     public String GetSymbol() {
-        return step % 2 == 0 ? "0":"x";
+        return  playrs[step % 2].symbol;
     }
 }

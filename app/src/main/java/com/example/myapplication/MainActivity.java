@@ -1,8 +1,13 @@
 package com.example.myapplication;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.DialogInterface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -16,6 +21,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView text;
     private Button arrButton[][];
     private Game m_game = new Game();
+    private  ServiceNetwork mServiceNetwork = null;
+    private  ParserCMD parse = new ParserCMD();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +52,61 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+// Add the buttons
+        builder.setPositiveButton("Server", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                // User clicked OK button
+                mServiceNetwork = ServiceNetwork.getInstanceServer(handler);
+                mServiceNetwork.start();
+            }
+        });
+        builder.setNegativeButton("Client", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                // User cancelled the dialog
+                mServiceNetwork = ServiceNetwork.getInstanceClient(handler, "192.168.1.2");
+                mServiceNetwork.start();
+            }
+        });
+
+// Create the AlertDialog
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    //    if (mServiceNetwork!=null ) mServiceNetwork.start();
+    }
+
+    private Handler handler = new Handler(new Handler.Callback() {
+
+        @Override
+        public boolean handleMessage(@NonNull Message msg) {
+            switch (msg.what){
+                case 1:
+                    // Парсить команду
+                    if( parse.extractIJ((byte[]) msg.obj, msg.arg1)) {
+                        // выполнить нажатие кнопки
+                        if( parse.i < 3 && parse.j < 3)
+                            ClickButton(parse.i, parse.j, arrButton[parse.i][parse.j]);
+                    }
+                    break;
+                case 2:
+                    break;
+            }
+
+            return false;
+        }
+    });
+
+    private void ClickButton(int i, int j, Button btn)
+    {
+        Game.State st = m_game.Step(i, j);
+        text.setText(m_game.GetCurrNamePlayer());
+        if (st == Game.State.E_END_GAME) {
+            btn.setText(m_game.GetSymbol());
+            Toast.makeText(MainActivity.this, m_game.msg_game(), Toast.LENGTH_SHORT).show();
+            return;
+        }else if( st == Game.State.E_ERROR )
+            Toast.makeText(MainActivity.this, m_game.msg_game(), Toast.LENGTH_SHORT).show();
+        else btn.setText(m_game.GetSymbol());
     }
 
     /*
@@ -58,17 +121,39 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onClick(View view) {
-            final Game game = MainActivity.this.m_game;
-            Game.State st = game.Step(i, j);
-            MainActivity.this.text.setText(game.GetCurrNamePlayer());
-            if (st == Game.State.E_END_GAME) {
-                ((Button)view).setText(game.GetSymbol());
-                Toast.makeText(MainActivity.this, game.msg_game(), Toast.LENGTH_SHORT).show();
-                return;
-            }else if( st == Game.State.E_ERROR )
-                Toast.makeText(MainActivity.this, game.msg_game(), Toast.LENGTH_SHORT).show();
-            else ((Button)view).setText(game.GetSymbol());
+        public void onClick(View view)
+        {
+            if(  mServiceNetwork.isBusy()) return;
+            ClickButton(i, j, ((Button)view));
+            parse.i = i;
+            parse.j = j;
+            try {
+                mServiceNetwork.sendData(parse.getByte());
+            }catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    private class ParserCMD {
+        public int i, j;
+        public ParserCMD() {
+            i = j = 0;
+        }
+        public boolean extractIJ(byte [] buff, int len){
+            for(int i = 0; i < len; i++){
+
+            }
+            return true;
+        }
+
+        byte[] getByte(){
+            StringBuilder strB = new StringBuilder();
+            strB.append(i);
+            strB.append(" ");
+            strB.append(j);
+            return strB.toString().getBytes();
         }
     }
 

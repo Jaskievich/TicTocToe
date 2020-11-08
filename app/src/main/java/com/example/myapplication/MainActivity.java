@@ -22,7 +22,7 @@ public class MainActivity extends AppCompatActivity {
     private Button arrButton[][];
     private Game m_game = new Game();
     private  ServiceNetwork mServiceNetwork = null;
-    private  ParserCMD parse = new ParserCMD();
+    private BoardСoordinates parse = new BoardСoordinates();
 
 
     @Override
@@ -42,15 +42,22 @@ public class MainActivity extends AppCompatActivity {
             arrButton[i][j].setOnClickListener( new MyClickListener(i,j) );
         }
 
+
         final Button btn = (Button)findViewById(R.id.button);
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                 MainActivity.this.m_game.Reset();
-                 for (int i = 0; i < 3; i++)
-                     for(int j = 0; j < 3 ; j++)  arrButton[i][j].setText("");
+                ResetGame();
+                try {
+                    byte [] arr = new byte[1];
+                    arr[0] = 'r';
+                    mServiceNetwork.sendData(arr);
+                }catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         });
+
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 // Add the buttons
@@ -75,26 +82,40 @@ public class MainActivity extends AppCompatActivity {
     //    if (mServiceNetwork!=null ) mServiceNetwork.start();
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mServiceNetwork.close();
+    }
+
     private Handler handler = new Handler(new Handler.Callback() {
 
         @Override
         public boolean handleMessage(@NonNull Message msg) {
-            switch (msg.what){
-                case 1:
+            if (msg.what == ServiceNetwork.READ_CMD) {
+                byte [] arr_byte = (byte[]) msg.obj;
+                if( arr_byte[0] =='c' ) {
                     // Парсить команду
-                    if( parse.extractIJ((byte[]) msg.obj, msg.arg1)) {
+                    if (parse.extractIJ(arr_byte)) {
                         // выполнить нажатие кнопки
-                        if( parse.i < 3 && parse.j < 3)
+                        if (parse.i < 3 && parse.j < 3)
                             ClickButton(parse.i, parse.j, arrButton[parse.i][parse.j]);
                     }
-                    break;
-                case 2:
-                    break;
+                }
+                else if(  arr_byte[0] =='r' ){
+                    ResetGame();
+                }
             }
-
-            return false;
+            return true;
         }
     });
+
+    private void ResetGame()
+    {
+        m_game.Reset();
+        for (int i = 0; i < 3; i++)
+            for(int j = 0; j < 3 ; j++)  arrButton[i][j].setText("");
+    }
 
     private void ClickButton(int i, int j, Button btn)
     {
@@ -115,7 +136,8 @@ public class MainActivity extends AppCompatActivity {
     class MyClickListener implements View.OnClickListener
     {
         private int i, j;
-        public MyClickListener(int i, int j){
+        public MyClickListener(int i, int j)
+        {
             this.i = i;
             this.j = j;
         }
@@ -136,24 +158,26 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private class ParserCMD {
+    private class BoardСoordinates
+    {
         public int i, j;
-        public ParserCMD() {
+
+        public BoardСoordinates() {
             i = j = 0;
         }
-        public boolean extractIJ(byte [] buff, int len){
-            for(int i = 0; i < len; i++){
 
-            }
+        public boolean extractIJ(byte [] buff){
+            i = (int)buff[1];
+            j = (int)buff[2];
             return true;
         }
 
         byte[] getByte(){
-            StringBuilder strB = new StringBuilder();
-            strB.append(i);
-            strB.append(" ");
-            strB.append(j);
-            return strB.toString().getBytes();
+            byte [] arr_byte = new byte[3];
+            arr_byte[0] = 'c';
+            arr_byte[1] = (byte)i;
+            arr_byte[2] = (byte)j;
+            return arr_byte;
         }
     }
 

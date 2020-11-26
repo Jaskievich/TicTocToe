@@ -76,16 +76,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        builder.setNeutralButton("Cancel", null);
+
+
 // Create the AlertDialog
         AlertDialog dialog = builder.create();
         dialog.show();
-    //    if (mServiceNetwork!=null ) mServiceNetwork.start();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if( mServiceNetwork == null) return;
         mServiceNetwork.close();
+        mServiceNetwork.StopThread();
     }
 
     private Handler handler = new Handler(new Handler.Callback() {
@@ -105,6 +109,9 @@ public class MainActivity extends AppCompatActivity {
                 else if(  arr_byte[0] =='r' ){
                     ResetGame();
                 }
+            }
+            else if(msg.what == ServiceNetwork.ERROR_MSG){
+                text.setText("Error socket");
             }
             return true;
         }
@@ -145,12 +152,12 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onClick(View view)
         {
-            if(  mServiceNetwork.isBusy()) return;
+            if( mServiceNetwork != null && mServiceNetwork.isBusy()) return;
             ClickButton(i, j, ((Button)view));
             parse.i = i;
             parse.j = j;
             try {
-                mServiceNetwork.sendData(parse.getByte());
+                if( mServiceNetwork != null) mServiceNetwork.sendData(parse.getByte());
             }catch (Exception e) {
                 e.printStackTrace();
             }

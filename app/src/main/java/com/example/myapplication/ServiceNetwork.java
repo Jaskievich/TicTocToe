@@ -7,20 +7,24 @@ import android.widget.Toast;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 
 
 public abstract class ServiceNetwork  extends Thread {
 
     public static final int READ_CMD = 1;
+    public static final int ERROR_MSG = 2;
     protected final static int SERVER_PORT = 6789; /* Сокет, который обрабатывает соединения на сервере */
-    protected Handler handler;
-    public static ServiceNetwork instance = null;
-    protected boolean is_busy = false;
-    protected Socket socket = null;
-    protected byte [] data;
 
+    protected Handler handler;
+    protected boolean is_busy = true;
+    protected Socket socket = null;
+    protected byte [] data_send;
+
+    public static ServiceNetwork instance = null;
 
     protected ServiceNetwork( Handler handler){
         this.handler = handler;
@@ -47,14 +51,13 @@ public abstract class ServiceNetwork  extends Thread {
     }
 
     protected synchronized void sendData(byte [] data){
-       this.data = data;
+       this.data_send = data;
        this.notify();
     }
 
 
     protected void _sendData(byte [] data) throws Exception
     {
-        //  errText.setLength(0);
         if(socket == null && socket.isClosed()){
             throw new Exception("Невозможно отправить данные. Сокет не создан или закрыт");
         }
@@ -92,6 +95,14 @@ public abstract class ServiceNetwork  extends Thread {
         closeConnection();
     }
 
+    public void StopThread(){
+        if( instance!= null ) {
+            ServiceNetwork instance_curr = instance;
+            instance = null;
+            instance_curr.interrupt();
+        }
+    }
+
  }
 
 class ServerGame  extends ServiceNetwork
@@ -101,7 +112,6 @@ class ServerGame  extends ServiceNetwork
     public ServerGame(Handler handler)
     {
         super(handler);
-        is_busy = true;
     }
 
     @Override
@@ -133,10 +143,11 @@ class ServerGame  extends ServiceNetwork
                     readMsg.sendToTarget();
                     is_busy = false;
                     this.wait();
-                    _sendData(data);
+                    _sendData(data_send);
                     is_busy = true;
                 } else /* если мы получили -1, значит прервался наш поток с данными */ if (count == -1) {
                     socket.close();
+                    handler.sendEmptyMessage(ERROR_MSG);
                     break;
                 }
             }
@@ -151,6 +162,7 @@ class ServerGame  extends ServiceNetwork
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -165,24 +177,28 @@ class ClientGame extends ServiceNetwork
 
     public ClientGame(Handler handler, String mNameServ) {
         super(handler);
-        is_busy = false;
         this.mNameServ = mNameServ;
     }
 
-    public synchronized void connection() throws IOException, Exception
+    public synchronized void connection() throws UnknownHostException, IOException, Exception
     {
         /* Создаем новый сокет. Указываем на каком компютере и порту запущен наш процесс, который будет принамать наше соединение. */
-        socket = new Socket(mNameServ, SERVER_PORT);
+        socket = new Socket();
+        socket.connect(new InetSocketAddress(mNameServ, SERVER_PORT), 50000);
+        is_busy = false;
         InputStream inputStream = socket.getInputStream();
         byte[] buffer = new byte[1024];
         while (true) {
             this.wait();
-            _sendData(data);
+            _sendData(data_send);
             is_busy = true;
             int count = inputStream.read(buffer, 0, buffer.length); /* проверяем, какое количество байт к нам прийшло */
             if (count > 0) {
                 Message readMsg = handler.obtainMessage(READ_CMD, count, -1, buffer);
                 readMsg.sendToTarget();
+            }
+            else{
+                handler.sendEmptyMessage(ERROR_MSG);
             }
             is_busy = false;
         }
@@ -192,8 +208,11 @@ class ClientGame extends ServiceNetwork
         closeConnection();
         try {
             connection();
+        }catch(UnknownHostException e){
+            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+            handler.sendEmptyMessage(ERROR_MSG);
         } catch (Exception e) {
             e.printStackTrace();
         }
